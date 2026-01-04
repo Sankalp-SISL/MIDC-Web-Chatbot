@@ -3,6 +3,9 @@ import json
 import datetime
 from bs4 import BeautifulSoup
 from google.cloud import storage
+from flask import Flask
+
+app = Flask(__name__)
 
 BUCKET_NAME = "midc-chatbot-content"
 
@@ -29,33 +32,22 @@ URLS = {
 
 def clean_html(html):
     soup = BeautifulSoup(html, "html.parser")
-
     for tag in soup(["script", "style", "nav", "footer", "header"]):
         tag.decompose()
+    return soup.get_text(separator=" ")
 
-    return soup.get_text(separator="\n")
-
-def chunk_text(text, chunk_size=500):
+def chunk_text(text, size=500):
     words = text.split()
-    chunks = []
-    for i in range(0, len(words), chunk_size):
-        chunks.append(" ".join(words[i:i+chunk_size]))
-    return chunks
+    return [" ".join(words[i:i+size]) for i in range(0, len(words), size)]
 
-def upload_json(section, data):
+@app.route("/")
+def run_indexer():
     client = storage.Client()
-    bucket = client.bucket(BUCKET_NAME)
-    blob = bucket.blob(f"{section}/content.json")
-    blob.upload_from_string(
-        json.dumps(data, indent=2),
-        content_type="application/json"
-    )
 
-def run_indexer(request):
     for section, url in URLS.items():
-        resp = requests.get(url, timeout=20)
-        clean_text = clean_html(resp.text)
-        chunks = chunk_text(clean_text)
+        html = requests.get(url, timeout=20).text
+        clean = clean_html(html)
+        chunks = chunk_text(clean)
 
         payload = {
             "section": section,
@@ -64,6 +56,11 @@ def run_indexer(request):
             "chunks": chunks
         }
 
-        upload_json(section, payload)
+        bucket = client.bucket(BUCKET_NAME)
+        blob = bucket.blob(f"{section}/content.json")
+        blob.upload_from_string(
+            json.dumps(payload, indent=2),
+            content_type="application/json"
+        )
 
-    return ("Indexing completed", 200)
+    return "Indexing completed", 200
