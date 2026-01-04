@@ -15,7 +15,7 @@ app = Flask(__name__)
 # CONFIGURATION
 # ======================
 
-BUCKET_NAME = "midc-chatbot-content"
+BUCKET_NAME = "midc-general-chatbot-bucket-web-data"
 
 HTML_URLS = {
     "home": "https://www.midcindia.org/",
@@ -145,3 +145,4 @@ def run_indexer():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
+
