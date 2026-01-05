@@ -20,7 +20,7 @@ app = Flask(__name__)
 # CONFIG
 # ======================
 
-PROJECT_ID = os.environ.get("GOOGLE_CLOUD_PROJECT")
+PROJECT_ID = os.environ.get("GOOGLE_CLOUD_PROJECT") or os.environ.get("GCP_PROJECT")
 LOCATION = "us"  # must match processor
 PROCESSOR_ID = os.environ.get("DOCUMENT_AI_PROCESSOR_ID")
 
@@ -145,3 +145,4 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=int(os.environ.get("PORT", 8080))
     )
+
