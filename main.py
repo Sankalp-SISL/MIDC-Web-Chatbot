@@ -7,14 +7,18 @@ import io
 from flask import Flask
 from bs4 import BeautifulSoup
 from google.cloud import storage
-from google.cloud import vision
+from google.cloud import documentai_v1 as documentai
 from pypdf import PdfReader
 
 app = Flask(__name__)
 
-# ======================
+# ======================================================
 # CONFIGURATION
-# ======================
+# ======================================================
+
+PROJECT_ID = os.environ.get("GOOGLE_CLOUD_PROJECT")
+LOCATION = "us"  # Document AI supports "us" or "eu"
+PROCESSOR_ID = os.environ.get("DOCUMENT_AI_PROCESSOR_ID")
 
 BUCKET_NAME = "midc-general-chatbot-bucket-web-data"
 
@@ -38,69 +42,73 @@ PDF_URLS = {
     "list-of-services-under-rts-act": "https://www.midcindia.org/wp-content/uploads/2025/09/RTS_MergedGRs_compressed-combined-12092025.pdf"
 }
 
-# ======================
-# HELPER FUNCTIONS
-# ======================
+# ======================================================
+# HELPERS
+# ======================================================
 
 def clean_html(html: str) -> str:
     soup = BeautifulSoup(html, "html.parser")
-
-    for tag in soup([
-        "script", "style", "nav", "footer", "header", "aside", "form"
-    ]):
+    for tag in soup(["script", "style", "nav", "footer", "header", "aside", "form"]):
         tag.decompose()
-
     text = soup.get_text(separator=" ")
     return " ".join(text.split())
 
 
-def ocr_pdf_with_vision(pdf_bytes: bytes) -> str:
-    """
-    OCR fallback for scanned PDFs.
-    Supports Marathi + English automatically.
-    """
-    client = vision.ImageAnnotatorClient()
-    image = vision.Image(content=pdf_bytes)
+def extract_pdf_text_native(pdf_bytes: bytes) -> str:
+    """Try normal text extraction first"""
+    reader = PdfReader(io.BytesIO(pdf_bytes))
+    text = ""
+    for page in reader.pages:
+        page_text = page.extract_text()
+        if page_text:
+            text += page_text + "\n"
+    return text.strip()
 
-    response = client.document_text_detection(image=image)
 
-    if response.error.message:
-        raise RuntimeError(response.error.message)
+def extract_pdf_text_document_ai(pdf_bytes: bytes) -> str:
+    """OCR scanned PDFs using Document AI"""
+    client = documentai.DocumentProcessorServiceClient()
 
-    return response.full_text_annotation.text
+    name = client.processor_path(
+        PROJECT_ID,
+        LOCATION,
+        PROCESSOR_ID
+    )
+
+    request = documentai.ProcessRequest(
+        name=name,
+        raw_document=documentai.RawDocument(
+            content=pdf_bytes,
+            mime_type="application/pdf"
+        )
+    )
+
+    result = client.process_document(request=request)
+    return result.document.text
 
 
 def extract_pdf_text(url: str) -> str:
     response = requests.get(url, timeout=60)
     response.raise_for_status()
-
     pdf_bytes = response.content
-    reader = PdfReader(io.BytesIO(pdf_bytes))
 
-    extracted_text = ""
+    # 1️⃣ Try native extraction
+    native_text = extract_pdf_text_native(pdf_bytes)
 
-    # Try native PDF text extraction first
-    for page in reader.pages:
-        page_text = page.extract_text()
-        if page_text:
-            extracted_text += page_text + "\n"
+    # 2️⃣ Fallback to OCR if scanned
+    if len(native_text) < 500:
+        return extract_pdf_text_document_ai(pdf_bytes)
 
-    # 🔴 OCR fallback if PDF is scanned or text is insufficient
-    if len(extracted_text.strip()) < 500:
-        extracted_text = ocr_pdf_with_vision(pdf_bytes)
-
-    return extracted_text
+    return native_text
 
 
 def chunk_text(text: str, chunk_size: int = 450):
     words = text.split()
     chunks = []
-
     for i in range(0, len(words), chunk_size):
         chunk = " ".join(words[i:i + chunk_size])
         if len(chunk.strip()) > 50:
             chunks.append(chunk)
-
     return chunks
 
 
@@ -114,9 +122,9 @@ def upload_to_gcs(section: str, payload: dict):
         content_type="application/json"
     )
 
-# ======================
+# ======================================================
 # CLOUD RUN ENTRYPOINT
-# ======================
+# ======================================================
 
 @app.route("/", methods=["GET"])
 def run_indexer():
@@ -125,47 +133,41 @@ def run_indexer():
     # -------- HTML PAGES --------
     for section, url in HTML_URLS.items():
         try:
-            response = requests.get(url, timeout=30)
-            response.raise_for_status()
+            r = requests.get(url, timeout=30)
+            r.raise_for_status()
 
-            cleaned_text = clean_html(response.text)
+            cleaned_text = clean_html(r.text)
             chunks = chunk_text(cleaned_text)
 
-            payload = {
+            upload_to_gcs(section, {
                 "section": section,
                 "content_type": "html",
                 "source_url": url,
                 "last_updated": timestamp,
                 "chunks": chunks
-            }
-
-            upload_to_gcs(section, payload)
+            })
 
         except Exception as e:
-            print(f"[ERROR][HTML] {section}: {str(e)}")
+            print(f"[HTML ERROR] {section}: {e}")
 
-    # -------- PDF DOCUMENTS (WITH OCR FALLBACK) --------
+    # -------- PDF DOCUMENTS (OCR ENABLED) --------
     for section, url in PDF_URLS.items():
         try:
             pdf_text = extract_pdf_text(url)
+            chunks = chunk_text(pdf_text, chunk_size=400)
 
-            # Slightly smaller chunks for legal documents
-            chunks = chunk_text(pdf_text, chunk_size=300)
-
-            payload = {
+            upload_to_gcs(section, {
                 "section": section,
                 "content_type": "pdf",
                 "source_url": url,
                 "last_updated": timestamp,
                 "chunks": chunks
-            }
-
-            upload_to_gcs(section, payload)
+            })
 
         except Exception as e:
-            print(f"[ERROR][PDF] {section}: {str(e)}")
+            print(f"[PDF ERROR] {section}: {e}")
 
-    return "MIDC content indexing completed successfully (with OCR)", 200
+    return "MIDC content indexing completed successfully (Document AI OCR)", 200
 
 
 if __name__ == "__main__":
