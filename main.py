@@ -7,6 +7,7 @@ import io
 from flask import Flask
 from bs4 import BeautifulSoup
 from google.cloud import storage
+from google.cloud import vision
 from pypdf import PdfReader
 
 app = Flask(__name__)
@@ -50,23 +51,45 @@ def clean_html(html: str) -> str:
         tag.decompose()
 
     text = soup.get_text(separator=" ")
-    text = " ".join(text.split())
-    return text
+    return " ".join(text.split())
+
+
+def ocr_pdf_with_vision(pdf_bytes: bytes) -> str:
+    """
+    OCR fallback for scanned PDFs.
+    Supports Marathi + English automatically.
+    """
+    client = vision.ImageAnnotatorClient()
+    image = vision.Image(content=pdf_bytes)
+
+    response = client.document_text_detection(image=image)
+
+    if response.error.message:
+        raise RuntimeError(response.error.message)
+
+    return response.full_text_annotation.text
 
 
 def extract_pdf_text(url: str) -> str:
-    response = requests.get(url, timeout=30)
+    response = requests.get(url, timeout=60)
     response.raise_for_status()
 
-    reader = PdfReader(io.BytesIO(response.content))
-    text = ""
+    pdf_bytes = response.content
+    reader = PdfReader(io.BytesIO(pdf_bytes))
 
+    extracted_text = ""
+
+    # Try native PDF text extraction first
     for page in reader.pages:
         page_text = page.extract_text()
         if page_text:
-            text += page_text + "\n"
+            extracted_text += page_text + "\n"
 
-    return text
+    # 🔴 OCR fallback if PDF is scanned or text is insufficient
+    if len(extracted_text.strip()) < 500:
+        extracted_text = ocr_pdf_with_vision(pdf_bytes)
+
+    return extracted_text
 
 
 def chunk_text(text: str, chunk_size: int = 450):
@@ -90,7 +113,6 @@ def upload_to_gcs(section: str, payload: dict):
         json.dumps(payload, indent=2, ensure_ascii=False),
         content_type="application/json"
     )
-
 
 # ======================
 # CLOUD RUN ENTRYPOINT
@@ -122,11 +144,13 @@ def run_indexer():
         except Exception as e:
             print(f"[ERROR][HTML] {section}: {str(e)}")
 
-    # -------- PDF DOCUMENTS --------
+    # -------- PDF DOCUMENTS (WITH OCR FALLBACK) --------
     for section, url in PDF_URLS.items():
         try:
             pdf_text = extract_pdf_text(url)
-            chunks = chunk_text(pdf_text, chunk_size=400)
+
+            # Slightly smaller chunks for legal documents
+            chunks = chunk_text(pdf_text, chunk_size=300)
 
             payload = {
                 "section": section,
@@ -141,8 +165,8 @@ def run_indexer():
         except Exception as e:
             print(f"[ERROR][PDF] {section}: {str(e)}")
 
-    return "MIDC content indexing completed successfully", 200
+    return "MIDC content indexing completed successfully (with OCR)", 200
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
-
