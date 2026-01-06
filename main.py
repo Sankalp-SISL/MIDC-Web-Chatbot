@@ -4,25 +4,16 @@ import json
 import datetime
 import io
 
-from flask import Flask, jsonify
+from flask import Flask
 from bs4 import BeautifulSoup
 from google.cloud import storage
-from google.cloud import documentai_v1 as documentai
 from pypdf import PdfReader
-
-# ======================
-# APP INIT (FIRST!)
-# ======================
 
 app = Flask(__name__)
 
 # ======================
-# CONFIG
+# CONFIGURATION
 # ======================
-
-PROJECT_ID = os.environ.get("GOOGLE_CLOUD_PROJECT") or os.environ.get("GCP_PROJECT")
-LOCATION = "us"  # must match processor
-PROCESSOR_ID = os.environ.get("DOCUMENT_AI_PROCESSOR_ID")
 
 BUCKET_NAME = "midc-general-chatbot-bucket-web-data"
 
@@ -47,102 +38,110 @@ PDF_URLS = {
 }
 
 # ======================
-# HELPERS
+# HELPER FUNCTIONS
 # ======================
 
-def clean_html(html):
+def clean_html(html: str) -> str:
     soup = BeautifulSoup(html, "html.parser")
-    for tag in soup(["script", "style", "nav", "footer", "header", "aside", "form"]):
+
+    for tag in soup([
+        "script", "style", "nav", "footer", "header", "aside", "form"
+    ]):
         tag.decompose()
-    return " ".join(soup.get_text(separator=" ").split())
+
+    text = soup.get_text(separator=" ")
+    text = " ".join(text.split())
+    return text
 
 
-def chunk_text(text, size=450):
+def extract_pdf_text(url: str) -> str:
+    response = requests.get(url, timeout=30)
+    response.raise_for_status()
+
+    reader = PdfReader(io.BytesIO(response.content))
+    text = ""
+
+    for page in reader.pages:
+        page_text = page.extract_text()
+        if page_text:
+            text += page_text + "\n"
+
+    return text
+
+
+def chunk_text(text: str, chunk_size: int = 450):
     words = text.split()
-    return [
-        " ".join(words[i:i+size])
-        for i in range(0, len(words), size)
-        if len(words[i:i+size]) > 20
-    ]
+    chunks = []
+
+    for i in range(0, len(words), chunk_size):
+        chunk = " ".join(words[i:i + chunk_size])
+        if len(chunk.strip()) > 50:
+            chunks.append(chunk)
+
+    return chunks
 
 
-def upload_to_gcs(section, payload):
+def upload_to_gcs(section: str, payload: dict):
     client = storage.Client()
     bucket = client.bucket(BUCKET_NAME)
     blob = bucket.blob(f"{section}/content.json")
+
     blob.upload_from_string(
-        json.dumps(payload, ensure_ascii=False, indent=2),
+        json.dumps(payload, indent=2, ensure_ascii=False),
         content_type="application/json"
     )
 
 
-def extract_pdf_with_document_ai(url):
-    response = requests.get(url, timeout=60)
-    response.raise_for_status()
-
-    client = documentai.DocumentProcessorServiceClient()
-    name = client.processor_path(PROJECT_ID, LOCATION, PROCESSOR_ID)
-
-    raw_document = documentai.RawDocument(
-        content=response.content,
-        mime_type="application/pdf"
-    )
-
-    request = documentai.ProcessRequest(
-        name=name,
-        raw_document=raw_document
-    )
-
-    result = client.process_document(request=request)
-    return result.document.text
-
-
 # ======================
-# ROUTES
+# CLOUD RUN ENTRYPOINT
 # ======================
 
 @app.route("/", methods=["GET"])
-def health():
-    return "MIDC Indexer is running", 200
-
-
-@app.route("/run-indexing", methods=["POST"])
-def run_indexing():
+def run_indexer():
     timestamp = datetime.datetime.utcnow().isoformat()
 
-    # HTML
+    # -------- HTML PAGES --------
     for section, url in HTML_URLS.items():
-        html = requests.get(url, timeout=30).text
-        text = clean_html(html)
-        upload_to_gcs(section, {
-            "section": section,
-            "content_type": "html",
-            "source_url": url,
-            "last_updated": timestamp,
-            "chunks": chunk_text(text)
-        })
+        try:
+            response = requests.get(url, timeout=30)
+            response.raise_for_status()
 
-    # PDFs (OCR)
+            cleaned_text = clean_html(response.text)
+            chunks = chunk_text(cleaned_text)
+
+            payload = {
+                "section": section,
+                "content_type": "html",
+                "source_url": url,
+                "last_updated": timestamp,
+                "chunks": chunks
+            }
+
+            upload_to_gcs(section, payload)
+
+        except Exception as e:
+            print(f"[ERROR][HTML] {section}: {str(e)}")
+
+    # -------- PDF DOCUMENTS --------
     for section, url in PDF_URLS.items():
-        text = extract_pdf_with_document_ai(url)
-        upload_to_gcs(section, {
-            "section": section,
-            "content_type": "pdf",
-            "source_url": url,
-            "last_updated": timestamp,
-            "chunks": chunk_text(text, 400)
-        })
+        try:
+            pdf_text = extract_pdf_text(url)
+            chunks = chunk_text(pdf_text, chunk_size=400)
 
-    return jsonify({"status": "Indexing completed"}), 200
+            payload = {
+                "section": section,
+                "content_type": "pdf",
+                "source_url": url,
+                "last_updated": timestamp,
+                "chunks": chunks
+            }
 
+            upload_to_gcs(section, payload)
 
-# ======================
-# START SERVER (LAST!)
-# ======================
+        except Exception as e:
+            print(f"[ERROR][PDF] {section}: {str(e)}")
+
+    return "MIDC content indexing completed successfully", 200
 
 if __name__ == "__main__":
-    app.run(
-        host="0.0.0.0",
-        port=int(os.environ.get("PORT", 8080))
-    )
-
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
