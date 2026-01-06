@@ -6,27 +6,24 @@
 <title>MIDC – Maharashtra Industrial Development Corporation</title>
 
 <style>
-/* =========================================================
-   BASIC PAGE STYLING (GOVERNMENT LOOK)
-========================================================= */
+/* ----------------------------
+   BASIC PAGE STYLING
+---------------------------- */
 body {
   margin: 0;
   font-family: "Segoe UI", Arial, sans-serif;
-  background: #f2f4f7;
-  color: #1f2933;
+  background: #f4f6f9;
 }
 
 header {
-  background: linear-gradient(90deg, #0b3c5d, #124a73);
+  background: #0b3c5d;
   color: white;
   padding: 18px 32px;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
 }
 
 header h1 {
   margin: 0;
   font-size: 22px;
-  font-weight: 600;
 }
 
 main {
@@ -38,17 +35,16 @@ section {
   padding: 24px;
   margin-bottom: 20px;
   border-radius: 8px;
-  border-left: 4px solid #0b3c5d;
   box-shadow: 0 2px 6px rgba(0,0,0,0.05);
 }
 
-/* =========================================================
+/* ----------------------------
    CHAT WIDGET BUTTON
-========================================================= */
+---------------------------- */
 #chat-toggle {
   position: fixed;
-  bottom: 24px;
-  left: 24px;
+  bottom: 20px;
+  left: 20px;
   width: 58px;
   height: 58px;
   border-radius: 50%;
@@ -57,119 +53,96 @@ section {
   border: none;
   font-size: 26px;
   cursor: pointer;
-  box-shadow: 0 6px 16px rgba(0,0,0,0.35);
+  box-shadow: 0 6px 16px rgba(0,0,0,0.3);
   z-index: 999;
 }
 
-#chat-toggle:hover {
-  background: #124a73;
-}
-
-/* =========================================================
+/* ----------------------------
    CHAT WINDOW
-========================================================= */
+---------------------------- */
 #chat-container {
   position: fixed;
-  bottom: 96px;
-  left: 24px;
-  width: 340px;
+  bottom: 90px;
+  left: 20px;
+  width: 360px;
   height: 460px;
-  background: #ffffff;
+  background: white;
   border-radius: 12px;
-  box-shadow: 0 12px 30px rgba(0,0,0,0.35);
+  box-shadow: 0 12px 30px rgba(0,0,0,0.25);
   display: none;
   flex-direction: column;
   z-index: 999;
-  overflow: hidden;
-  border: 1px solid #d1d5db;
 }
 
-/* =========================================================
-   CHAT HEADER
-========================================================= */
 #chat-header {
   background: #0b3c5d;
   color: white;
-  padding: 14px 16px;
-  font-weight: 600;
+  padding: 14px;
+  font-weight: bold;
   font-size: 15px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  border-top-left-radius: 12px;
+  border-top-right-radius: 12px;
 }
 
-#chat-header span {
-  font-size: 13px;
-  opacity: 0.85;
-}
-
-/* =========================================================
-   CHAT MESSAGES AREA
-========================================================= */
 #chat-messages {
   flex: 1;
   padding: 14px;
   overflow-y: auto;
   font-size: 14px;
-  background: #f9fafb;
+  line-height: 1.5;
 }
 
-/* Message wrapper */
+/* ----------------------------
+   MESSAGE STYLES
+---------------------------- */
 .message {
-  margin-bottom: 12px;
-  max-width: 85%;
-  line-height: 1.45;
-  word-wrap: break-word;
+  margin-bottom: 14px;
+  max-width: 90%;
 }
 
-/* User bubble */
-.user {
+.message.user {
   margin-left: auto;
-  background: #0b3c5d;
-  color: white;
-  padding: 10px 12px;
-  border-radius: 14px 14px 4px 14px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.15);
-  font-size: 13.5px;
-}
-
-/* Bot bubble */
-.bot {
-  margin-right: auto;
-  background: #ffffff;
-  color: #1f2933;
-  padding: 10px 12px;
-  border-radius: 14px 14px 14px 4px;
-  border: 1px solid #e5e7eb;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.08);
-  font-size: 13.5px;
-}
-
-/* Bot label */
-.bot::before {
-  content: "MIDC";
-  display: block;
-  font-size: 11px;
-  font-weight: 600;
+  background: #e6f0f8;
   color: #0b3c5d;
-  margin-bottom: 4px;
+  padding: 10px 12px;
+  border-radius: 12px 12px 0 12px;
+  text-align: right;
 }
 
-/* =========================================================
-   CHAT INPUT
-========================================================= */
+.message.bot {
+  background: #f2f2f2;
+  color: #333;
+  padding: 10px 12px;
+  border-radius: 12px 12px 12px 0;
+}
+
+.message.bot ul {
+  padding-left: 18px;
+  margin: 8px 0;
+}
+
+.message.bot li {
+  margin-bottom: 6px;
+}
+
+.message.bot strong {
+  color: #0b3c5d;
+}
+
+/* ----------------------------
+   INPUT
+---------------------------- */
 #chat-input {
   display: flex;
-  border-top: 1px solid #e5e7eb;
-  background: white;
+  border-top: 1px solid #ddd;
 }
 
 #chat-input input {
   flex: 1;
   border: none;
   padding: 12px;
-  font-size: 14px;
   outline: none;
+  font-size: 14px;
 }
 
 #chat-input button {
@@ -177,24 +150,8 @@ section {
   color: white;
   border: none;
   padding: 0 18px;
-  font-size: 14px;
   cursor: pointer;
-}
-
-#chat-input button:hover {
-  background: #124a73;
-}
-
-/* =========================================================
-   SCROLLBAR (SUBTLE)
-========================================================= */
-#chat-messages::-webkit-scrollbar {
-  width: 6px;
-}
-
-#chat-messages::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 4px;
+  font-size: 14px;
 }
 </style>
 </head>
@@ -224,24 +181,20 @@ section {
 </main>
 
 <!-- CHAT BUTTON -->
-<button id="chat-toggle" aria-label="Open MIDC Assistant">💬</button>
+<button id="chat-toggle">💬</button>
 
 <!-- CHAT WINDOW -->
 <div id="chat-container">
-  <div id="chat-header">
-    MIDC Assistant <span>Official Information Helpdesk</span>
-  </div>
+  <div id="chat-header">MIDC Assistant</div>
 
   <div id="chat-messages">
     <div class="message bot">
-      Hello! 👋  
-      I am the MIDC official assistant.  
-      How may I help you today?
+      Hello! 👋 How can I help you with MIDC today?
     </div>
   </div>
 
   <div id="chat-input">
-    <input type="text" id="user-input" placeholder="Type your question here…" />
+    <input type="text" id="user-input" placeholder="Type your question..." />
     <button onclick="sendMessage()">Send</button>
   </div>
 </div>
@@ -252,13 +205,32 @@ const chatContainer = document.getElementById("chat-container");
 const messagesDiv = document.getElementById("chat-messages");
 const userInput = document.getElementById("user-input");
 
-// Toggle chat window
 chatToggle.onclick = () => {
   chatContainer.style.display =
     chatContainer.style.display === "flex" ? "none" : "flex";
 };
 
-// Send message
+// Convert basic Markdown to HTML
+function renderMarkdown(text) {
+  let html = text;
+
+  // Bold **text**
+  html = html.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
+
+  // Bullet points
+  html = html.replace(/^\* (.*)$/gm, "<li>$1</li>");
+
+  // Wrap list items
+  if (html.includes("<li>")) {
+    html = "<ul>" + html + "</ul>";
+  }
+
+  // Line breaks
+  html = html.replace(/\n/g, "<br>");
+
+  return html;
+}
+
 async function sendMessage() {
   const message = userInput.value.trim();
   if (!message) return;
@@ -277,26 +249,27 @@ async function sendMessage() {
     );
 
     const data = await response.json();
-    addMessage(
-      data.answer || "The requested information is not available at the moment.",
-      "bot"
-    );
+    addMessage(data.answer || "No response received.", "bot", true);
 
   } catch (error) {
-    addMessage("Unable to reach the MIDC server. Please try again later.", "bot");
+    addMessage("Unable to reach the server.", "bot");
   }
 }
 
-// Add message
-function addMessage(text, sender) {
+function addMessage(text, sender, isMarkdown = false) {
   const div = document.createElement("div");
   div.className = `message ${sender}`;
-  div.innerText = text;
+
+  if (isMarkdown) {
+    div.innerHTML = renderMarkdown(text);
+  } else {
+    div.innerText = text;
+  }
+
   messagesDiv.appendChild(div);
   messagesDiv.scrollTop = messagesDiv.scrollHeight;
 }
 
-// Enter key support
 userInput.addEventListener("keydown", e => {
   if (e.key === "Enter") sendMessage();
 });
