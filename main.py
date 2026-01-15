@@ -1,192 +1,147 @@
 import os
+import requests
 import json
-import time
-import hashlib
 import datetime
-from urllib.parse import urljoin, urlparse
+import io
 
-from google.cloud import storage
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
+from flask import Flask
 from bs4 import BeautifulSoup
+from google.cloud import storage
+from pypdf import PdfReader
 
-# =========================
+app = Flask(__name__)
+
+# ======================
 # CONFIGURATION
-# =========================
+# ======================
 
 BUCKET_NAME = "midc-general-chatbot-bucket-web-data"
-START_URLS = [
-    "https://www.midcindia.org",
-    "https://cmhelpline.mp.gov.in/cmhlwhatsapp.aspx"
-]
 
-ALLOWED_DOMAINS = (
-    "midcindia.org",
-    "gov.in",
-    "nic.in"
-)
+HTML_URLS = {
+    "home": "https://www.midcindia.org/",
+    "about-maharashtra": "https://www.midcindia.org/en/about-maharashtra/",
+    "about-midc": "https://www.midcindia.org/en/about-midc/",
+    "departments-of-midc": "https://www.midcindia.org/en/about-midc/departments-of-midc/",
+    "faq": "https://www.midcindia.org/en/faqs/",
+    "investors": "https://www.midcindia.org/en/investors/",
+    "customers": "https://www.midcindia.org/en/customers/",
+    "country-desk": "https://www.midcindia.org/en/country-desk/",
+    "focus-sectors": "https://www.midcindia.org/en/focus-sectors/",
+    "contact": "https://www.midcindia.org/en/contact/",
+    "important-notice": "https://www.midcindia.org/en/important-notice/"
+}
 
-MAX_PAGES = 500
-CRAWL_DELAY = 1.5
+PDF_URLS = {
+    "right-to-public-service-act": "https://www.midcindia.org/wp-content/uploads/2024/07/Maharashtra_Right_to_public_services_Act_2015.pdf",
+    "rts-gazette": "https://www.midcindia.org/wp-content/uploads/2024/07/RTS_Rules_Gazette.pdf",
+    "list-of-services-under-rts-act": "https://www.midcindia.org/wp-content/uploads/2025/09/RTS_MergedGRs_compressed-combined-12092025.pdf"
+}
 
-# =========================
-# GCS CLIENT
-# =========================
+# ======================
+# HELPER FUNCTIONS
+# ======================
 
-storage_client = storage.Client()
-bucket = storage_client.bucket(BUCKET_NAME)
+def clean_html(html: str) -> str:
+    soup = BeautifulSoup(html, "html.parser")
 
-# =========================
-# UTILITIES
-# =========================
+    for tag in soup([
+        "script", "style", "nav", "footer", "header", "aside", "form"
+    ]):
+        tag.decompose()
 
-def hash_id(value: str) -> str:
-    return hashlib.sha256(value.encode()).hexdigest()[:20]
+    text = soup.get_text(separator=" ")
+    text = " ".join(text.split())
+    return text
 
-def upload_json(path: str, payload: dict):
-    blob = bucket.blob(path)
+
+def extract_pdf_text(url: str) -> str:
+    response = requests.get(url, timeout=30)
+    response.raise_for_status()
+
+    reader = PdfReader(io.BytesIO(response.content))
+    text = ""
+
+    for page in reader.pages:
+        page_text = page.extract_text()
+        if page_text:
+            text += page_text + "\n"
+
+    return text
+
+
+def chunk_text(text: str, chunk_size: int = 450):
+    words = text.split()
+    chunks = []
+
+    for i in range(0, len(words), chunk_size):
+        chunk = " ".join(words[i:i + chunk_size])
+        if len(chunk.strip()) > 50:
+            chunks.append(chunk)
+
+    return chunks
+
+
+def upload_to_gcs(section: str, payload: dict):
+    client = storage.Client()
+    bucket = client.bucket(BUCKET_NAME)
+    blob = bucket.blob(f"{section}/content.json")
+
     blob.upload_from_string(
         json.dumps(payload, indent=2, ensure_ascii=False),
         content_type="application/json"
     )
 
-def is_allowed(url: str) -> bool:
-    parsed = urlparse(url)
-    return parsed.scheme in ("http", "https") and any(
-        d in parsed.netloc for d in ALLOWED_DOMAINS
-    )
 
-# =========================
-# SELENIUM SETUP
-# =========================
+# ======================
+# CLOUD RUN ENTRYPOINT
+# ======================
 
-def create_driver():
-    options = Options()
-    options.add_argument("--headless=new")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--disable-gpu")
-    options.add_argument("--window-size=1920,1080")
-    return webdriver.Chrome(options=options)
+@app.route("/", methods=["GET"])
+def run_indexer():
+    timestamp = datetime.datetime.utcnow().isoformat()
 
-# =========================
-# EXTRACTION LOGIC
-# =========================
+    # -------- HTML PAGES --------
+    for section, url in HTML_URLS.items():
+        try:
+            response = requests.get(url, timeout=30)
+            response.raise_for_status()
 
-def extract_page(driver, url):
-    driver.get(url)
-    time.sleep(2)
+            cleaned_text = clean_html(response.text)
+            chunks = chunk_text(cleaned_text)
 
-    soup = BeautifulSoup(driver.page_source, "html.parser")
+            payload = {
+                "section": section,
+                "content_type": "html",
+                "source_url": url,
+                "last_updated": timestamp,
+                "chunks": chunks
+            }
 
-    for tag in soup(["script", "style", "nav", "footer", "header", "aside"]):
-        tag.decompose()
+            upload_to_gcs(section, payload)
 
-    text = " ".join(soup.get_text(separator=" ").split())
+        except Exception as e:
+            print(f"[ERROR][HTML] {section}: {str(e)}")
 
-    links = set()
-    for a in soup.find_all("a", href=True):
-        full = urljoin(url, a["href"])
-        if is_allowed(full):
-            links.add(full)
+    # -------- PDF DOCUMENTS --------
+    for section, url in PDF_URLS.items():
+        try:
+            pdf_text = extract_pdf_text(url)
+            chunks = chunk_text(pdf_text, chunk_size=400)
 
-    forms = []
-    for form in soup.find_all("form"):
-        fields = []
-        for inp in form.find_all(["input", "select", "textarea"]):
-            fields.append({
-                "name": inp.get("name"),
-                "type": inp.get("type", inp.name),
-                "required": inp.has_attr("required"),
-                "placeholder": inp.get("placeholder")
-            })
+            payload = {
+                "section": section,
+                "content_type": "pdf",
+                "source_url": url,
+                "last_updated": timestamp,
+                "chunks": chunks
+            }
 
-        forms.append({
-            "action": urljoin(url, form.get("action", "")),
-            "method": form.get("method", "GET").upper(),
-            "fields": fields
-        })
+            upload_to_gcs(section, payload)
 
-    return {
-        "url": url,
-        "domain": urlparse(url).netloc,
-        "title": soup.title.text.strip() if soup.title else "",
-        "text": text,
-        "forms": forms,
-        "links": list(links),
-        "timestamp": datetime.datetime.utcnow().isoformat()
-    }
+        except Exception as e:
+            print(f"[ERROR][PDF] {section}: {str(e)}")
 
-# =========================
-# MAIN CRAWLER
-# =========================
-
-def run():
-    driver = create_driver()
-    visited = set()
-    queue = START_URLS.copy()
-
-    manifest = []
-
-    try:
-        while queue and len(visited) < MAX_PAGES:
-            url = queue.pop(0)
-            if url in visited:
-                continue
-
-            print(f"[CRAWLING] {url}")
-            visited.add(url)
-
-            try:
-                data = extract_page(driver, url)
-            except Exception as e:
-                print(f"[FAILED] {url} → {e}")
-                continue
-
-            page_id = hash_id(url)
-            domain_type = "external_govt" if "midcindia.org" not in url else "midc"
-
-            upload_json(
-                f"pages/{domain_type}/{page_id}.json",
-                data
-            )
-
-            if data["forms"]:
-                upload_json(
-                    f"forms/{page_id}.json",
-                    {
-                        "source_url": url,
-                        "forms": data["forms"]
-                    }
-                )
-
-            manifest.append({
-                "url": url,
-                "page_id": page_id,
-                "domain_type": domain_type
-            })
-
-            for link in data["links"]:
-                if link not in visited and link not in queue:
-                    queue.append(link)
-
-            time.sleep(CRAWL_DELAY)
-
-    finally:
-        driver.quit()
-
-    upload_json("crawl_manifest.json", {
-        "total_pages": len(manifest),
-        "generated_at": datetime.datetime.utcnow().isoformat(),
-        "pages": manifest
-    })
-
-    print("Crawling completed successfully")
-
-# =========================
-# ENTRYPOINT
-# =========================
+    return "MIDC content indexing completed successfully", 200
 
 if __name__ == "__main__":
-    run()
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
