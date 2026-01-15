@@ -3,6 +3,7 @@ import requests
 import json
 import datetime
 import io
+from urllib.parse import urljoin, urlparse
 
 from flask import Flask
 from bs4 import BeautifulSoup
@@ -16,75 +17,71 @@ app = Flask(__name__)
 # ======================
 
 BUCKET_NAME = "midc-general-chatbot-bucket-web-data"
+ROOT_URL = "https://www.midcindia.org"
 
-HTML_URLS = {
-    "home": "https://www.midcindia.org/",
-    "about-maharashtra": "https://www.midcindia.org/en/about-maharashtra/",
-    "about-midc": "https://www.midcindia.org/en/about-midc/",
-    "departments-of-midc": "https://www.midcindia.org/en/about-midc/departments-of-midc/",
-    "faq": "https://www.midcindia.org/en/faqs/",
-    "investors": "https://www.midcindia.org/en/investors/",
-    "customers": "https://www.midcindia.org/en/customers/",
-    "country-desk": "https://www.midcindia.org/en/country-desk/",
-    "focus-sectors": "https://www.midcindia.org/en/focus-sectors/",
-    "contact": "https://www.midcindia.org/en/contact/",
-    "important-notice": "https://www.midcindia.org/en/important-notice/"
-}
+MAX_PAGES = 300          # safety cap
+REQUEST_TIMEOUT = 30
 
-PDF_URLS = {
-    "right-to-public-service-act": "https://www.midcindia.org/wp-content/uploads/2024/07/Maharashtra_Right_to_public_services_Act_2015.pdf",
-    "rts-gazette": "https://www.midcindia.org/wp-content/uploads/2024/07/RTS_Rules_Gazette.pdf",
-    "list-of-services-under-rts-act": "https://www.midcindia.org/wp-content/uploads/2025/09/RTS_MergedGRs_compressed-combined-12092025.pdf"
-}
+visited = set()
+session = requests.Session()
 
 # ======================
-# HELPER FUNCTIONS
+# HELPERS
 # ======================
 
-def clean_html(html: str) -> str:
+def clean_html(html: str):
     soup = BeautifulSoup(html, "html.parser")
 
-    for tag in soup([
-        "script", "style", "nav", "footer", "header", "aside", "form"
-    ]):
+    for tag in soup(["script", "style", "nav", "footer", "aside"]):
         tag.decompose()
 
-    text = soup.get_text(separator=" ")
-    text = " ".join(text.split())
-    return text
+    text = " ".join(soup.get_text(separator=" ").split())
+
+    headings = [h.get_text(strip=True) for h in soup.find_all(["h1", "h2", "h3"])]
+    links = [a.get("href") for a in soup.find_all("a", href=True)]
+
+    forms = []
+    for form in soup.find_all("form"):
+        fields = []
+        for inp in form.find_all(["input", "select", "textarea"]):
+            fields.append({
+                "name": inp.get("name"),
+                "type": inp.get("type"),
+                "required": inp.has_attr("required")
+            })
+
+        forms.append({
+            "action": form.get("action"),
+            "method": form.get("method", "GET"),
+            "fields": fields
+        })
+
+    return text, headings, links, forms
 
 
-def extract_pdf_text(url: str) -> str:
-    response = requests.get(url, timeout=30)
-    response.raise_for_status()
-
-    reader = PdfReader(io.BytesIO(response.content))
-    text = ""
-
-    for page in reader.pages:
-        page_text = page.extract_text()
-        if page_text:
-            text += page_text + "\n"
-
-    return text
+def extract_pdf_text(url: str):
+    try:
+        response = session.get(url, timeout=REQUEST_TIMEOUT)
+        response.raise_for_status()
+        reader = PdfReader(io.BytesIO(response.content))
+        return "\n".join(filter(None, [p.extract_text() for p in reader.pages]))
+    except Exception:
+        return ""
 
 
-def chunk_text(text: str, chunk_size: int = 450):
+def chunk_text(text: str, size=450):
     words = text.split()
-    chunks = []
-
-    for i in range(0, len(words), chunk_size):
-        chunk = " ".join(words[i:i + chunk_size])
-        if len(chunk.strip()) > 50:
-            chunks.append(chunk)
-
-    return chunks
+    return [
+        " ".join(words[i:i+size])
+        for i in range(0, len(words), size)
+        if len(words[i:i+size]) > 50
+    ]
 
 
-def upload_to_gcs(section: str, payload: dict):
+def upload_payload(path: str, payload: dict):
     client = storage.Client()
     bucket = client.bucket(BUCKET_NAME)
-    blob = bucket.blob(f"{section}/content.json")
+    blob = bucket.blob(path)
 
     blob.upload_from_string(
         json.dumps(payload, indent=2, ensure_ascii=False),
@@ -92,56 +89,81 @@ def upload_to_gcs(section: str, payload: dict):
     )
 
 
+def is_internal(url):
+    return url.startswith(ROOT_URL)
+
+
 # ======================
-# CLOUD RUN ENTRYPOINT
+# CRAWLER
+# ======================
+
+def crawl(url):
+    if url in visited or len(visited) >= MAX_PAGES:
+        return
+
+    visited.add(url)
+    print(f"[CRAWLING] {url}")
+
+    try:
+        r = session.get(url, timeout=REQUEST_TIMEOUT)
+        r.raise_for_status()
+    except Exception:
+        return
+
+    content_type = r.headers.get("Content-Type", "")
+
+    timestamp = datetime.datetime.utcnow().isoformat()
+    parsed = urlparse(url)
+    path_key = parsed.path.strip("/").replace("/", "_") or "home"
+
+    # ---------- PDF ----------
+    if "pdf" in content_type or url.lower().endswith(".pdf"):
+        pdf_text = extract_pdf_text(url)
+        upload_payload(
+            f"pdf/{path_key}.json",
+            {
+                "url": url,
+                "type": "pdf",
+                "chunks": chunk_text(pdf_text, 400),
+                "last_crawled": timestamp
+            }
+        )
+        return
+
+    # ---------- HTML ----------
+    text, headings, links, forms = clean_html(r.text)
+
+    payload = {
+        "url": url,
+        "type": "html",
+        "headings": headings,
+        "chunks": chunk_text(text),
+        "forms": forms,
+        "last_crawled": timestamp,
+        "outbound_links": []
+    }
+
+    upload_payload(f"pages/{path_key}.json", payload)
+
+    for link in links:
+        absolute = urljoin(url, link)
+        if is_internal(absolute):
+            crawl(absolute)
+        else:
+            payload["outbound_links"].append(absolute)
+
+    upload_payload(f"pages/{path_key}.json", payload)
+
+
+# ======================
+# CLOUD RUN JOB ENTRY
 # ======================
 
 @app.route("/", methods=["GET"])
 def run_indexer():
-    timestamp = datetime.datetime.utcnow().isoformat()
+    crawl(ROOT_URL)
+    return f"Indexing completed. Pages indexed: {len(visited)}", 200
 
-    # -------- HTML PAGES --------
-    for section, url in HTML_URLS.items():
-        try:
-            response = requests.get(url, timeout=30)
-            response.raise_for_status()
-
-            cleaned_text = clean_html(response.text)
-            chunks = chunk_text(cleaned_text)
-
-            payload = {
-                "section": section,
-                "content_type": "html",
-                "source_url": url,
-                "last_updated": timestamp,
-                "chunks": chunks
-            }
-
-            upload_to_gcs(section, payload)
-
-        except Exception as e:
-            print(f"[ERROR][HTML] {section}: {str(e)}")
-
-    # -------- PDF DOCUMENTS --------
-    for section, url in PDF_URLS.items():
-        try:
-            pdf_text = extract_pdf_text(url)
-            chunks = chunk_text(pdf_text, chunk_size=400)
-
-            payload = {
-                "section": section,
-                "content_type": "pdf",
-                "source_url": url,
-                "last_updated": timestamp,
-                "chunks": chunks
-            }
-
-            upload_to_gcs(section, payload)
-
-        except Exception as e:
-            print(f"[ERROR][PDF] {section}: {str(e)}")
-
-    return "MIDC content indexing completed successfully", 200
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
