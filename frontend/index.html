@@ -6,9 +6,6 @@
 <title>MIDC – Maharashtra Industrial Development Corporation</title>
 
 <style>
-/* ----------------------------
-   BASIC PAGE STYLING
----------------------------- */
 body {
   margin: 0;
   font-family: "Segoe UI", Arial, sans-serif;
@@ -21,32 +18,17 @@ header {
   padding: 18px 32px;
 }
 
-header h1 {
-  margin: 0;
-  font-size: 22px;
-}
-
 main {
   padding: 40px;
 }
 
-section {
-  background: white;
-  padding: 24px;
-  margin-bottom: 20px;
-  border-radius: 8px;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
-}
-
-/* ----------------------------
-   CHAT WIDGET BUTTON
----------------------------- */
+/* ---------------- CHAT TOGGLE ---------------- */
 #chat-toggle {
   position: fixed;
   bottom: 20px;
   left: 20px;
-  width: 58px;
-  height: 58px;
+  width: 60px;
+  height: 60px;
   border-radius: 50%;
   background: #0b3c5d;
   color: white;
@@ -54,34 +36,31 @@ section {
   font-size: 26px;
   cursor: pointer;
   box-shadow: 0 6px 16px rgba(0,0,0,0.3);
-  z-index: 999;
+  z-index: 1000;
 }
 
-/* ----------------------------
-   CHAT WINDOW
----------------------------- */
+/* ---------------- CHAT WINDOW ---------------- */
 #chat-container {
   position: fixed;
   bottom: 90px;
   left: 20px;
-  width: 360px;
-  height: 460px;
+  width: 380px;
+  height: 520px;
   background: white;
-  border-radius: 12px;
-  box-shadow: 0 12px 30px rgba(0,0,0,0.25);
+  border-radius: 14px;
+  box-shadow: 0 16px 40px rgba(0,0,0,0.25);
   display: none;
   flex-direction: column;
-  z-index: 999;
+  z-index: 1000;
 }
 
 #chat-header {
   background: #0b3c5d;
   color: white;
-  padding: 14px;
-  font-weight: bold;
+  padding: 14px 16px;
+  font-weight: 600;
   font-size: 15px;
-  border-top-left-radius: 12px;
-  border-top-right-radius: 12px;
+  border-radius: 14px 14px 0 0;
 }
 
 #chat-messages {
@@ -89,12 +68,10 @@ section {
   padding: 14px;
   overflow-y: auto;
   font-size: 14px;
-  line-height: 1.5;
+  line-height: 1.6;
 }
 
-/* ----------------------------
-   MESSAGE STYLES
----------------------------- */
+/* ---------------- MESSAGE BUBBLES ---------------- */
 .message {
   margin-bottom: 14px;
   max-width: 90%;
@@ -104,16 +81,19 @@ section {
   margin-left: auto;
   background: #e6f0f8;
   color: #0b3c5d;
-  padding: 10px 12px;
-  border-radius: 12px 12px 0 12px;
-  text-align: right;
+  padding: 10px 14px;
+  border-radius: 14px 14px 0 14px;
 }
 
 .message.bot {
   background: #f2f2f2;
   color: #333;
-  padding: 10px 12px;
-  border-radius: 12px 12px 12px 0;
+  padding: 10px 14px;
+  border-radius: 14px 14px 14px 0;
+}
+
+.message.bot strong {
+  color: #0b3c5d;
 }
 
 .message.bot ul {
@@ -125,13 +105,40 @@ section {
   margin-bottom: 6px;
 }
 
-.message.bot strong {
-  color: #0b3c5d;
+/* ---------------- INFO CARDS ---------------- */
+.card {
+  background: #ffffff;
+  border: 1px solid #e0e0e0;
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-top: 8px;
+  font-size: 13px;
 }
 
-/* ----------------------------
-   INPUT
----------------------------- */
+.card a {
+  color: #0b3c5d;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.card a:hover {
+  text-decoration: underline;
+}
+
+.card-title {
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: #333;
+}
+
+/* ---------------- CONFIDENCE ---------------- */
+.confidence {
+  font-size: 12px;
+  color: #666;
+  margin-top: 4px;
+}
+
+/* ---------------- INPUT ---------------- */
 #chat-input {
   display: flex;
   border-top: 1px solid #ddd;
@@ -140,7 +147,7 @@ section {
 #chat-input input {
   flex: 1;
   border: none;
-  padding: 12px;
+  padding: 14px;
   outline: none;
   font-size: 14px;
 }
@@ -149,9 +156,8 @@ section {
   background: #0b3c5d;
   color: white;
   border: none;
-  padding: 0 18px;
+  padding: 0 20px;
   cursor: pointer;
-  font-size: 14px;
 }
 </style>
 </head>
@@ -159,42 +165,22 @@ section {
 <body>
 
 <header>
-  <h1>Maharashtra Industrial Development Corporation</h1>
+  <h2>Maharashtra Industrial Development Corporation</h2>
 </header>
 
-<main>
-  <section>
-    <h2>About MIDC</h2>
-    <p>
-      MIDC is a Government of Maharashtra undertaking providing infrastructure
-      such as land, roads, water supply, drainage, and electricity to industries.
-    </p>
-  </section>
-
-  <section>
-    <h2>Investor Services</h2>
-    <p>
-      MIDC facilitates industrial growth by offering plots, sheds, and
-      single-window clearances.
-    </p>
-  </section>
-</main>
-
-<!-- CHAT BUTTON -->
 <button id="chat-toggle">💬</button>
 
-<!-- CHAT WINDOW -->
 <div id="chat-container">
-  <div id="chat-header">MIDC Assistant</div>
+  <div id="chat-header">MIDC Digital Assistant</div>
 
   <div id="chat-messages">
     <div class="message bot">
-      Hello! 👋 How can I help you with MIDC today?
+      Hello! 👋 I can help you navigate MIDC services, forms, and official information.
     </div>
   </div>
 
   <div id="chat-input">
-    <input type="text" id="user-input" placeholder="Type your question..." />
+    <input type="text" id="user-input" placeholder="Ask about MIDC services..." />
     <button onclick="sendMessage()">Send</button>
   </div>
 </div>
@@ -210,25 +196,22 @@ chatToggle.onclick = () => {
     chatContainer.style.display === "flex" ? "none" : "flex";
 };
 
-// Convert basic Markdown to HTML
+// Basic Markdown renderer
 function renderMarkdown(text) {
   let html = text;
-
-  // Bold **text**
   html = html.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
-
-  // Bullet points
   html = html.replace(/^\* (.*)$/gm, "<li>$1</li>");
-
-  // Wrap list items
-  if (html.includes("<li>")) {
-    html = "<ul>" + html + "</ul>";
-  }
-
-  // Line breaks
+  if (html.includes("<li>")) html = "<ul>" + html + "</ul>";
   html = html.replace(/\n/g, "<br>");
-
   return html;
+}
+
+function addMessage(content, sender) {
+  const div = document.createElement("div");
+  div.className = `message ${sender}`;
+  div.innerHTML = content;
+  messagesDiv.appendChild(div);
+  messagesDiv.scrollTop = messagesDiv.scrollHeight;
 }
 
 async function sendMessage() {
@@ -239,7 +222,7 @@ async function sendMessage() {
   userInput.value = "";
 
   try {
-    const response = await fetch(
+    const res = await fetch(
       "https://midc-chatbot-120807823040.asia-south1.run.app/chat",
       {
         method: "POST",
@@ -248,26 +231,60 @@ async function sendMessage() {
       }
     );
 
-    const data = await response.json();
-    addMessage(data.answer || "No response received.", "bot", true);
+    const data = await res.json();
 
-  } catch (error) {
-    addMessage("Unable to reach the server.", "bot");
+    addMessage(renderMarkdown(data.answer || "No response."), "bot");
+
+    // Recommended Pages
+    (data.recommended_pages || []).forEach(p => {
+      addMessage(`
+        <div class="card">
+          <div class="card-title">Recommended Page</div>
+          <a href="${p.url}" target="_blank">${p.title}</a>
+        </div>
+      `, "bot");
+    });
+
+    // External Links
+    (data.external_links || []).forEach(link => {
+      addMessage(`
+        <div class="card">
+          <div class="card-title">External Link</div>
+          <a href="${link}" target="_blank">${link}</a>
+        </div>
+      `, "bot");
+    });
+
+    // Forms
+    (data.forms_detected || []).forEach(f => {
+      addMessage(`
+        <div class="card">
+          <div class="card-title">Form Assistance</div>
+          <div>Required details:</div>
+          <ul>${f.required_fields.map(x => `<li>${x}</li>`).join("")}</ul>
+          <a href="${f.url}" target="_blank">Open Official Form</a>
+        </div>
+      `, "bot");
+    });
+
+    // Confidence
+    if (data.confidence_score !== undefined) {
+      addMessage(
+        `<div class="confidence">Confidence: ${(data.confidence_score * 100).toFixed(0)}%</div>`,
+        "bot"
+      );
+    }
+
+    // Follow-up
+    if (data.conversation_state?.should_follow_up && data.conversation_state.follow_up_message) {
+      setTimeout(() => {
+        addMessage(data.conversation_state.follow_up_message, "bot");
+      }, 1200);
+    }
+
+  } catch (e) {
+    addMessage("⚠️ Unable to reach the server.", "bot");
   }
-}
-
-function addMessage(text, sender, isMarkdown = false) {
-  const div = document.createElement("div");
-  div.className = `message ${sender}`;
-
-  if (isMarkdown) {
-    div.innerHTML = renderMarkdown(text);
-  } else {
-    div.innerText = text;
-  }
-
-  messagesDiv.appendChild(div);
-  messagesDiv.scrollTop = messagesDiv.scrollHeight;
 }
 
 userInput.addEventListener("keydown", e => {
