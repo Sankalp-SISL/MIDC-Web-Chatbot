@@ -64,14 +64,16 @@ body {
   background: #f9fafc;
 }
 
-/* MESSAGE BUBBLES */
+/* BASE MESSAGE */
 .message {
   margin-bottom: 14px;
-  max-width: 85%;
   line-height: 1.5;
   word-wrap: break-word;
   font-size: 14px;
   position: relative;
+  display: inline-block;
+  width: fit-content;
+  max-width: 85%;
 }
 
 /* USER */
@@ -79,7 +81,7 @@ body {
   margin-left: auto;
   background: #e6f0f8;
   color: #0b3c5d;
-  padding: 12px 14px;
+  padding: 10px 14px;
   border-radius: 14px 14px 4px 14px;
 }
 
@@ -87,7 +89,7 @@ body {
 .message.bot {
   background: #ffffff;
   color: #333;
-  padding: 14px 16px 24px;
+  padding: 14px 16px 26px;
   border-radius: 14px 14px 14px 4px;
   border: 1px solid #e2e6ea;
 }
@@ -102,20 +104,24 @@ body {
   margin: 8px 0;
 }
 
+.message.bot li {
+  margin-bottom: 6px;
+}
+
 .message.bot a {
   color: #0b3c5d;
   text-decoration: underline;
   word-break: break-word;
 }
 
-/* 🔹 SUBTLE CONFIDENCE FLAG */
+/* CONFIDENCE FLAG */
 .confidence-flag {
   position: absolute;
   bottom: 6px;
   right: 10px;
   font-size: 10px;
-  color: #7a8691;
-  background: #f1f3f6;
+  color: #6b7785;
+  background: #eef1f5;
   padding: 2px 6px;
   border-radius: 6px;
 }
@@ -154,7 +160,7 @@ body {
 
   <div id="chat-messages">
     <div class="message bot">
-      👋 Hello! I’m the official MIDC website assistant.  
+      👋 Hello! I’m the official MIDC website assistant.<br>
       How can I help you today?
     </div>
   </div>
@@ -176,11 +182,12 @@ chatToggle.onclick = () => {
     chatContainer.style.display === "flex" ? "none" : "flex";
 };
 
-/* RENDER BOT RESPONSE */
 function renderBotResponse(data) {
   let html = "";
 
-  html += `<div>${data.answer || "No response available."}</div>`;
+  if (data.answer) {
+    html += `<div>${data.answer}</div>`;
+  }
 
   if (data.recommended_pages?.length) {
     html += "<br><strong>Recommended pages:</strong><ul>";
@@ -198,18 +205,29 @@ function renderBotResponse(data) {
     html += "</ul>";
   }
 
-  if (data.confidence_score !== undefined) {
-    const pct = Math.round(data.confidence_score * 100);
-    html += `<div class="confidence-flag">CS ${pct}%</div>`;
-  }
-
   return html;
 }
 
-function addMessage(content, sender) {
+function addBotMessage(content, confidence) {
   const div = document.createElement("div");
-  div.className = `message ${sender}`;
+  div.className = "message bot";
   div.innerHTML = content;
+
+  if (confidence !== undefined) {
+    const badge = document.createElement("div");
+    badge.className = "confidence-flag";
+    badge.innerText = `CS ${Math.round(confidence * 100)}%`;
+    div.appendChild(badge);
+  }
+
+  messagesDiv.appendChild(div);
+  messagesDiv.scrollTop = messagesDiv.scrollHeight;
+}
+
+function addUserMessage(text) {
+  const div = document.createElement("div");
+  div.className = "message user";
+  div.innerText = text;
   messagesDiv.appendChild(div);
   messagesDiv.scrollTop = messagesDiv.scrollHeight;
 }
@@ -218,7 +236,7 @@ async function sendMessage() {
   const message = userInput.value.trim();
   if (!message) return;
 
-  addMessage(message, "user");
+  addUserMessage(message);
   userInput.value = "";
 
   try {
@@ -233,16 +251,19 @@ async function sendMessage() {
 
     const data = await response.json();
 
-    addMessage(renderBotResponse(data), "bot");
+    addBotMessage(
+      renderBotResponse(data),
+      data.confidence_score
+    );
 
     if (data.conversation_state?.should_follow_up) {
       setTimeout(() => {
-        addMessage(data.conversation_state.follow_up_message, "bot");
-      }, 4000);
+        addBotMessage(data.conversation_state.follow_up_message);
+      }, 3500);
     }
 
   } catch {
-    addMessage("⚠️ Unable to reach the server right now.", "bot");
+    addBotMessage("⚠️ Unable to reach the server right now.");
   }
 }
 
