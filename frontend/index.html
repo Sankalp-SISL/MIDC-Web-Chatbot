@@ -3,95 +3,96 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>MIDC – Maharashtra Industrial Development Corporation</title>
+<title>MIDC AI Assistant</title>
 
 <style>
 body {
   margin: 0;
-  font-family: "Segoe UI", Arial, sans-serif;
+  font-family: "Segoe UI", Roboto, Arial, sans-serif;
   background: #f4f6f9;
 }
 
-header {
-  background: #0b3c5d;
-  color: white;
-  padding: 18px 32px;
-}
-
-main {
-  padding: 40px;
-}
-
-/* ---------------- CHAT TOGGLE ---------------- */
+/* CHAT TOGGLE */
 #chat-toggle {
   position: fixed;
   bottom: 20px;
   left: 20px;
-  width: 60px;
-  height: 60px;
+  width: 58px;
+  height: 58px;
   border-radius: 50%;
   background: #0b3c5d;
-  color: white;
+  color: #fff;
   border: none;
   font-size: 26px;
   cursor: pointer;
-  box-shadow: 0 6px 16px rgba(0,0,0,0.3);
-  z-index: 1000;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.25);
+  z-index: 999;
 }
 
-/* ---------------- CHAT WINDOW ---------------- */
+/* CONTAINER */
 #chat-container {
   position: fixed;
   bottom: 90px;
   left: 20px;
   width: 380px;
+  max-width: calc(100vw - 40px);
   height: 520px;
-  background: white;
+  background: #ffffff;
   border-radius: 14px;
-  box-shadow: 0 16px 40px rgba(0,0,0,0.25);
+  box-shadow: 0 16px 40px rgba(0,0,0,0.3);
   display: none;
   flex-direction: column;
-  z-index: 1000;
+  z-index: 999;
 }
 
+/* HEADER */
 #chat-header {
   background: #0b3c5d;
   color: white;
   padding: 14px 16px;
-  font-weight: 600;
   font-size: 15px;
-  border-radius: 14px 14px 0 0;
+  font-weight: 600;
+  border-top-left-radius: 14px;
+  border-top-right-radius: 14px;
 }
 
+/* MESSAGE AREA */
 #chat-messages {
   flex: 1;
-  padding: 14px;
+  padding: 16px;
   overflow-y: auto;
-  font-size: 14px;
-  line-height: 1.6;
+  background: #f9fafc;
 }
 
-/* ---------------- MESSAGE BUBBLES ---------------- */
+/* MESSAGE BUBBLES */
 .message {
   margin-bottom: 14px;
-  max-width: 90%;
+  max-width: 85%;
+  line-height: 1.5;
+  word-wrap: break-word;
+  font-size: 14px;
+  position: relative;
 }
 
+/* USER */
 .message.user {
   margin-left: auto;
   background: #e6f0f8;
   color: #0b3c5d;
-  padding: 10px 14px;
-  border-radius: 14px 14px 0 14px;
+  padding: 12px 14px;
+  border-radius: 14px 14px 4px 14px;
 }
 
+/* BOT */
 .message.bot {
-  background: #f2f2f2;
+  background: #ffffff;
   color: #333;
-  padding: 10px 14px;
-  border-radius: 14px 14px 14px 0;
+  padding: 14px 16px 24px;
+  border-radius: 14px 14px 14px 4px;
+  border: 1px solid #e2e6ea;
 }
 
+/* BOT CONTENT */
 .message.bot strong {
   color: #0b3c5d;
 }
@@ -101,44 +102,25 @@ main {
   margin: 8px 0;
 }
 
-.message.bot li {
-  margin-bottom: 6px;
-}
-
-/* ---------------- INFO CARDS ---------------- */
-.card {
-  background: #ffffff;
-  border: 1px solid #e0e0e0;
-  border-radius: 10px;
-  padding: 10px 12px;
-  margin-top: 8px;
-  font-size: 13px;
-}
-
-.card a {
+.message.bot a {
   color: #0b3c5d;
-  text-decoration: none;
-  font-weight: 600;
-}
-
-.card a:hover {
   text-decoration: underline;
+  word-break: break-word;
 }
 
-.card-title {
-  font-weight: 600;
-  margin-bottom: 6px;
-  color: #333;
+/* 🔹 SUBTLE CONFIDENCE FLAG */
+.confidence-flag {
+  position: absolute;
+  bottom: 6px;
+  right: 10px;
+  font-size: 10px;
+  color: #7a8691;
+  background: #f1f3f6;
+  padding: 2px 6px;
+  border-radius: 6px;
 }
 
-/* ---------------- CONFIDENCE ---------------- */
-.confidence {
-  font-size: 12px;
-  color: #666;
-  margin-top: 4px;
-}
-
-/* ---------------- INPUT ---------------- */
+/* INPUT */
 #chat-input {
   display: flex;
   border-top: 1px solid #ddd;
@@ -158,29 +140,27 @@ main {
   border: none;
   padding: 0 20px;
   cursor: pointer;
+  font-size: 14px;
 }
 </style>
 </head>
 
 <body>
 
-<header>
-  <h2>Maharashtra Industrial Development Corporation</h2>
-</header>
-
 <button id="chat-toggle">💬</button>
 
 <div id="chat-container">
-  <div id="chat-header">MIDC Digital Assistant</div>
+  <div id="chat-header">MIDC AI Assistant</div>
 
   <div id="chat-messages">
     <div class="message bot">
-      Hello! 👋 I can help you navigate MIDC services, forms, and official information.
+      👋 Hello! I’m the official MIDC website assistant.  
+      How can I help you today?
     </div>
   </div>
 
   <div id="chat-input">
-    <input type="text" id="user-input" placeholder="Ask about MIDC services..." />
+    <input type="text" id="user-input" placeholder="Type your question..." />
     <button onclick="sendMessage()">Send</button>
   </div>
 </div>
@@ -196,13 +176,33 @@ chatToggle.onclick = () => {
     chatContainer.style.display === "flex" ? "none" : "flex";
 };
 
-// Basic Markdown renderer
-function renderMarkdown(text) {
-  let html = text;
-  html = html.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
-  html = html.replace(/^\* (.*)$/gm, "<li>$1</li>");
-  if (html.includes("<li>")) html = "<ul>" + html + "</ul>";
-  html = html.replace(/\n/g, "<br>");
+/* RENDER BOT RESPONSE */
+function renderBotResponse(data) {
+  let html = "";
+
+  html += `<div>${data.answer || "No response available."}</div>`;
+
+  if (data.recommended_pages?.length) {
+    html += "<br><strong>Recommended pages:</strong><ul>";
+    data.recommended_pages.forEach(p => {
+      html += `<li><a href="${p.url}" target="_blank">${p.title}</a></li>`;
+    });
+    html += "</ul>";
+  }
+
+  if (data.external_links?.length) {
+    html += "<br><strong>Useful links:</strong><ul>";
+    data.external_links.forEach(l => {
+      html += `<li><a href="${l}" target="_blank">${l}</a></li>`;
+    });
+    html += "</ul>";
+  }
+
+  if (data.confidence_score !== undefined) {
+    const pct = Math.round(data.confidence_score * 100);
+    html += `<div class="confidence-flag">CS ${pct}%</div>`;
+  }
+
   return html;
 }
 
@@ -222,7 +222,7 @@ async function sendMessage() {
   userInput.value = "";
 
   try {
-    const res = await fetch(
+    const response = await fetch(
       "https://midc-chatbot-120807823040.asia-south1.run.app/chat",
       {
         method: "POST",
@@ -231,59 +231,18 @@ async function sendMessage() {
       }
     );
 
-    const data = await res.json();
+    const data = await response.json();
 
-    addMessage(renderMarkdown(data.answer || "No response."), "bot");
+    addMessage(renderBotResponse(data), "bot");
 
-    // Recommended Pages
-    (data.recommended_pages || []).forEach(p => {
-      addMessage(`
-        <div class="card">
-          <div class="card-title">Recommended Page</div>
-          <a href="${p.url}" target="_blank">${p.title}</a>
-        </div>
-      `, "bot");
-    });
-
-    // External Links
-    (data.external_links || []).forEach(link => {
-      addMessage(`
-        <div class="card">
-          <div class="card-title">External Link</div>
-          <a href="${link}" target="_blank">${link}</a>
-        </div>
-      `, "bot");
-    });
-
-    // Forms
-    (data.forms_detected || []).forEach(f => {
-      addMessage(`
-        <div class="card">
-          <div class="card-title">Form Assistance</div>
-          <div>Required details:</div>
-          <ul>${f.required_fields.map(x => `<li>${x}</li>`).join("")}</ul>
-          <a href="${f.url}" target="_blank">Open Official Form</a>
-        </div>
-      `, "bot");
-    });
-
-    // Confidence
-    if (data.confidence_score !== undefined) {
-      addMessage(
-        `<div class="confidence">Confidence: ${(data.confidence_score * 100).toFixed(0)}%</div>`,
-        "bot"
-      );
-    }
-
-    // Follow-up
-    if (data.conversation_state?.should_follow_up && data.conversation_state.follow_up_message) {
+    if (data.conversation_state?.should_follow_up) {
       setTimeout(() => {
         addMessage(data.conversation_state.follow_up_message, "bot");
-      }, 1200);
+      }, 4000);
     }
 
-  } catch (e) {
-    addMessage("⚠️ Unable to reach the server.", "bot");
+  } catch {
+    addMessage("⚠️ Unable to reach the server right now.", "bot");
   }
 }
 
