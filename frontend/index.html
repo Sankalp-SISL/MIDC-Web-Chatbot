@@ -64,16 +64,16 @@ body {
   background: #f9fafc;
 }
 
-/* BASE MESSAGE */
+/* MESSAGE */
 .message {
   margin-bottom: 14px;
   line-height: 1.5;
-  word-wrap: break-word;
   font-size: 14px;
   position: relative;
   display: inline-block;
   width: fit-content;
   max-width: 85%;
+  word-wrap: break-word;
 }
 
 /* USER */
@@ -95,18 +95,14 @@ body {
 }
 
 /* BOT CONTENT */
-.message.bot strong {
-  color: #0b3c5d;
-}
+.message.bot strong { color: #0b3c5d; }
 
 .message.bot ul {
   padding-left: 18px;
   margin: 8px 0;
 }
 
-.message.bot li {
-  margin-bottom: 6px;
-}
+.message.bot li { margin-bottom: 6px; }
 
 .message.bot a {
   color: #0b3c5d;
@@ -130,6 +126,7 @@ body {
 #chat-input {
   display: flex;
   border-top: 1px solid #ddd;
+  align-items: center;
 }
 
 #chat-input input {
@@ -144,9 +141,20 @@ body {
   background: #0b3c5d;
   color: white;
   border: none;
-  padding: 0 20px;
+  padding: 0 18px;
   cursor: pointer;
   font-size: 14px;
+}
+
+/* INTERNET TOGGLE */
+#internet-toggle {
+  margin-left: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  color: #0b3c5d;
+  background: #eef1f5;
+  border-radius: 6px;
+  padding: 6px 8px;
 }
 </style>
 </head>
@@ -168,6 +176,7 @@ body {
   <div id="chat-input">
     <input type="text" id="user-input" placeholder="Type your question..." />
     <button onclick="sendMessage()">Send</button>
+    <div id="internet-toggle" title="Search Internet explicitly">🌐</div>
   </div>
 </div>
 
@@ -176,17 +185,33 @@ const chatToggle = document.getElementById("chat-toggle");
 const chatContainer = document.getElementById("chat-container");
 const messagesDiv = document.getElementById("chat-messages");
 const userInput = document.getElementById("user-input");
+const internetToggle = document.getElementById("internet-toggle");
+
+let internetMode = false;
 
 chatToggle.onclick = () => {
   chatContainer.style.display =
     chatContainer.style.display === "flex" ? "none" : "flex";
 };
 
+internetToggle.onclick = () => {
+  internetMode = !internetMode;
+  internetToggle.style.background = internetMode ? "#d0e3f1" : "#eef1f5";
+};
+
+/* CLEAN ANY STRAY CODE FENCES */
+function sanitize(html) {
+  return html
+    .replace(/^```html/i, "")
+    .replace(/```$/i, "")
+    .trim();
+}
+
 function renderBotResponse(data) {
   let html = "";
 
   if (data.answer) {
-    html += `<div>${data.answer}</div>`;
+    html += `<div>${sanitize(data.answer)}</div>`;
   }
 
   if (data.recommended_pages?.length) {
@@ -200,7 +225,7 @@ function renderBotResponse(data) {
   if (data.external_links?.length) {
     html += "<br><strong>Useful links:</strong><ul>";
     data.external_links.forEach(l => {
-      html += `<li><a href="${l}" target="_blank">${l}</a></li>`;
+      html += `<li><a href="${l.url}" target="_blank">${l.title}</a></li>`;
     });
     html += "</ul>";
   }
@@ -245,7 +270,10 @@ async function sendMessage() {
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: message })
+        body: JSON.stringify({
+          question: message,
+          mode: internetMode ? "internet" : undefined
+        })
       }
     );
 
